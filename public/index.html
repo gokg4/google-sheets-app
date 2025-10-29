@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Indira Marriage Hall Expenses</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Indira Marriage Hall Expenses</h1>
+
+    {{if .Error}}
+        <p class="error">{{.Error}}</p>
+    {{else}}
+        <table id="expensesTable">
+            <thead>
+                <tr>
+                    {{range .Headers}}
+                        <th>{{.}}</th>
+                    {{end}}
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Rows}}
+                    <tr>
+                        {{range .}}
+                            <td>{{.}}</td>
+                        {{end}}
+                    </tr>
+                {{end}}
+            </tbody>
+        </table>
+    {{end}}
+
+</body>
+</html>

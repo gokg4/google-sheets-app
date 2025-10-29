@@ -1,87 +1,58 @@
-// Copyright 2023 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"reflect"
 	"testing"
-	"time"
 )
 
-// statusHandler is an http.Handler that writes an empty response using itself
-// as the response status code.
-type statusHandler int
+func TestFetchSheetData(t *testing.T) {
+	// A mock server that will act as our fake Google Sheet.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// This is the CSV content our test server will provide.
+		w.Header().Set("Content-Type", "text/csv")
+		// Correctly formatted CSV with newlines
+		w.Write([]byte(`Header1,Header2
+Row1Col1,Row1Col2
+Row2Col1,Row2Col2`))
+	}))
+	defer server.Close()
 
-func (h *statusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(int(*h))
+	// The URL from our mock server is passed to the function under test.
+	headers, rows, err := fetchSheetData(server.URL)
+
+	// 1. Test for unexpected errors.
+	if err != nil {
+		t.Fatalf("fetchSheetData returned an unexpected error: %v", err)
+	}
+
+	// 2. Define the expected results.
+	expectedHeaders := []string{"Header1", "Header2"}
+	expectedRows := [][]string{
+		{"Row1Col1", "Row1Col2"},
+		{"Row2Col1", "Row2Col2"},
+	}
+
+	// 3. Compare the actual results with our expectations.
+	if !reflect.DeepEqual(headers, expectedHeaders) {
+		t.Errorf("expected headers %v, got %v", expectedHeaders, headers)
+	}
+	if !reflect.DeepEqual(rows, expectedRows) {
+		t.Errorf("expected rows %v, got %v", expectedRows, rows)
+	}
 }
 
-func TestIsTagged(t *testing.T) {
-	// Set up a fake "Google Code" web server reporting 404 not found.
-	status := statusHandler(http.StatusNotFound)
-	s := httptest.NewServer(&status)
-	defer s.Close()
+// Test for what happens when the server returns a non-200 status code.
+func TestFetchSheetData_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
 
-	if isTagged(s.URL) {
-		t.Fatal("isTagged == true, want false")
-	}
+	_, _, err := fetchSheetData(server.URL)
 
-	// Change fake server status to 200 OK and try again.
-	status = http.StatusOK
-
-	if !isTagged(s.URL) {
-		t.Fatal("isTagged == false, want true")
-	}
-}
-
-func TestIntegration(t *testing.T) {
-	status := statusHandler(http.StatusNotFound)
-	ts := httptest.NewServer(&status)
-	defer ts.Close()
-
-	// Replace the pollSleep with a closure that we can block and unblock.
-	sleep := make(chan bool)
-	pollSleep = func(time.Duration) {
-		sleep <- true
-		sleep <- true
-	}
-
-	// Replace pollDone with a closure that will tell us when the poller is
-	// exiting.
-	done := make(chan bool)
-	pollDone = func() { done <- true }
-
-	// Put things as they were when the test finishes.
-	defer func() {
-		pollSleep = time.Sleep
-		pollDone = func() {}
-	}()
-
-	s := NewServer("1.x", ts.URL, 1*time.Millisecond)
-
-	<-sleep // Wait for poll loop to start sleeping.
-
-	// Make first request to the server.
-	r, _ := http.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, r)
-	if b := w.Body.String(); !strings.Contains(b, "No.") {
-		t.Fatalf("body = %s, want no", b)
-	}
-
-	status = http.StatusOK
-
-	<-sleep // Permit poll loop to stop sleeping.
-	<-done  // Wait for poller to see the "OK" status and exit.
-
-	// Make second request to the server.
-	w = httptest.NewRecorder()
-	s.ServeHTTP(w, r)
-	if b := w.Body.String(); !strings.Contains(b, "YES!") {
-		t.Fatalf("body = %q, want yes", b)
+	if err == nil {
+		t.Fatal("expected an error, but got none")
 	}
 }
