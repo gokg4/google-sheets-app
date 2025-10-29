@@ -53,28 +53,74 @@
 
     <h1>Indiraa & Nisshanth Marriage Hall Expenses</h1>
 
-    {{if .Error}}
-        <p class="error">{{.Error}}</p>
-    {{else}}
-        <table id="expensesTable">
-            <thead>
-                <tr>
-                    {{range .Headers}}
-                        <th>{{.}}</th>
-                    {{end}}
-                </tr>
-            </thead>
-            <tbody>
-                {{range .Rows}}
-                    <tr>
-                        {{range .}}
-                            <td>{{.}}</td>
-                        {{end}}
-                    </tr>
-                {{end}}
-            </tbody>
-        </table>
-    {{end}}
+    <table id="expensesTable">
+        <thead>
+            <tr id="tableHeaders">
+                <!-- Headers will be inserted here by JavaScript -->
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- Rows will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+    <p id="error-message" class="error"></p>
+
+    <script>
+        // The Go program injects the spreadsheet ID here at build time.
+        const spreadsheetId = '{{.SpreadsheetID}}';
+        const sheetId = '0';
+        const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&gid=${sheetId}`;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(csvText => {
+                    // Split the CSV text into lines
+                    const lines = csvText.trim().split('\n');
+                    if (lines.length === 0) {
+                        return;
+                    }
+
+                    // Extract headers and rows
+                    const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
+                    const rows = lines.slice(1).map(line => line.split(',').map(cell => cell.replace(/"/g, '')));
+
+                    const tableHeaders = document.getElementById('tableHeaders');
+                    const tableBody = document.getElementById('tableBody');
+
+                    // Clear any previous headers/rows
+                    tableHeaders.innerHTML = '';
+                    tableBody.innerHTML = '';
+
+                    // Populate headers
+                    headers.forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        tableHeaders.appendChild(th);
+                    });
+
+                    // Populate rows
+                    rows.forEach(rowData => {
+                        const tr = document.createElement('tr');
+                        rowData.forEach(cellData => {
+                            const td = document.createElement('td');
+                            td.textContent = cellData;
+                            tr.appendChild(td);
+                        });
+                        tableBody.appendChild(tr);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching or parsing sheet data:', error);
+                    document.getElementById('error-message').textContent = `Could not load data. Please check the sheet permissions.`;
+                });
+        });
+    </script>
 
 </body>
 </html>
