@@ -67,9 +67,10 @@
 
     <script>
         // The Go program injects the spreadsheet ID here at build time.
-        const spreadsheetId = '{{.SpreadsheetID}}';
+        const spreadsheetId = '''{{.SpreadsheetID}}''';
         const sheetId = '0';
-        const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&gid=${sheetId}`;
+        // Request JSON output, which is more robust for handling empty cells
+        const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${sheetId}`;
 
         document.addEventListener('DOMContentLoaded', () => {
             fetch(url)
@@ -79,17 +80,18 @@
                     }
                     return response.text();
                 })
-                .then(csvText => {
-                    // Split the CSV text into lines
-                    const lines = csvText.trim().split('\n');
-                    if (lines.length === 0) {
-                        return;
+                .then(text => {
+                    // The response is not pure JSON. It's JSONP. We need to extract the JSON part.
+                    const jsonString = text.match(/google\.visualization\.Query\.setResponse\((.*)\)/s)[1];
+                    const data = JSON.parse(jsonString);
+
+                    const table = data.table;
+                    if (!table || !table.cols || !table.rows) {
+                        throw new Error("Invalid data format received from Google Sheets.");
                     }
-
-                    // Extract headers and rows
-                    const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
-                    const rows = lines.slice(1).map(line => line.split(',').map(cell => cell.replace(/"/g, '')));
-
+                    
+                    const headers = table.cols.map(col => col.label);
+                    
                     const tableHeaders = document.getElementById('tableHeaders');
                     const tableBody = document.getElementById('tableBody');
 
@@ -105,19 +107,23 @@
                     });
 
                     // Populate rows
-                    rows.forEach(rowData => {
+                    table.rows.forEach(rowData => {
                         const tr = document.createElement('tr');
-                        rowData.forEach(cellData => {
+                        // Ensure each row has a cell for every header
+                        for (let i = 0; i < headers.length; i++) {
+                            const cell = rowData.c[i];
                             const td = document.createElement('td');
-                            td.textContent = cellData;
+                            // A cell can be null if it's empty in the sheet.
+                            // The value is in the 'v' property, formatted value in 'f'
+                            td.textContent = cell ? (cell.f || cell.v || '') : '';
                             tr.appendChild(td);
-                        });
+                        }
                         tableBody.appendChild(tr);
                     });
                 })
                 .catch(error => {
                     console.error('Error fetching or parsing sheet data:', error);
-                    document.getElementById('error-message').textContent = `Could not load data. Please check the sheet permissions.`;
+                    document.getElementById('error-message').textContent = 'Could not load data. Please ensure the Google Sheet is public.';
                 });
         });
     </script>
