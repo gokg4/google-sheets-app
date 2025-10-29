@@ -67,7 +67,7 @@
 
     <script>
         // The Go program injects the spreadsheet ID here at build time.
-        const spreadsheetId = '''{{.SpreadsheetID}}''';
+        const spreadsheetId = '{{.SpreadsheetID}}';
         const sheetId = '0';
         // Request JSON output, which is more robust for handling empty cells
         const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${sheetId}`;
