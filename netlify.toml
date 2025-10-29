@@ -1,0 +1,3 @@
+[build]
+  command = "go run ."
+  publish = "public"
