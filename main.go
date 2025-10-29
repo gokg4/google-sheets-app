@@ -4,9 +4,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 // PageData defines the data structure for the HTML template.
@@ -64,6 +66,11 @@ func main() {
 		log.Fatalf("FATAL: could not execute template: %v", err)
 	}
 
+	// Copy static assets
+	if err := copyStaticAssets("static", "public"); err != nil {
+		log.Fatalf("FATAL: could not copy static assets: %v", err)
+	}
+
 	log.Println("Successfully generated static site to public/index.html")
 }
 
@@ -90,4 +97,36 @@ func fetchSheetData(url string) ([]string, [][]string, error) {
 	}
 
 	return records[0], records[1:], nil
+}
+
+// copyStaticAssets copies all files and directories from src to dst.
+func copyStaticAssets(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Create a parallel destination path
+		dstPath := filepath.Join(dst, path[len(src):])
+
+		if info.IsDir() {
+			return os.MkdirAll(dstPath, info.Mode())
+		}
+
+		// If it's a file, copy it
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
 }
