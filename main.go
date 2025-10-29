@@ -41,6 +41,11 @@ func main() {
 		data.Error = fmt.Sprintf("Could not load data: %v", err)
 	}
 
+	// Create the public directory if it doesn't exist
+	if err := os.MkdirAll("public", os.ModePerm); err != nil {
+		log.Fatalf("FATAL: could not create public directory: %v", err)
+	}
+
 	// Parse the HTML template
 	tmpl, err := template.ParseFiles("templates/index.html.tmpl")
 	if err != nil {
